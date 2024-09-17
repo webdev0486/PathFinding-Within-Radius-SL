@@ -1,2 +1,109 @@
 # PathFinding-Within-Radius-SL
 Pathfinding Script for SecondLife that enables Animesh to Walk within a 360 radius from its rezzed point. You can set custom radius.
+
+//Copy The Script Below
+
+vector gCenterPoint;
+float gRange = 5.0;           
+float gSpeed = 0.2;           
+float gDetectionRange = 1.0;  
+float gTurnAngle = PI;        
+
+vector gWaypoint;            
+integer gMoving = FALSE;     
+integer gTurning = FALSE;    
+integer gActive = TRUE;
+
+
+moveToWaypoint() {
+    if (gTurning || !gActive) {
+        
+        return;
+    }
+
+    vector currentPosition = llGetPos();
+    vector direction = llVecNorm(gWaypoint - currentPosition); 
+    vector newPosition = currentPosition + direction * gSpeed;  
+
+    
+    vector forward = <1, 0, 0>; 
+    vector targetDirection = <direction.x, direction.y, 0.0>; 
+    rotation targetRotation = llRotBetween(forward, targetDirection);
+
+    llSetRot(targetRotation); 
+    llSetPos(newPosition);    
+
+    
+    if (llVecDist(newPosition, gWaypoint) < gSpeed) {
+        gMoving = FALSE;
+        llSetTimerEvent(1.0); 
+    }
+}      
+
+
+vector getRandomWaypoint() {
+    float angle = llFrand(TWO_PI);              
+    float distance = llFrand(gRange);           
+    vector offset = <llCos(angle) * distance, llSin(angle) * distance, 0.0>; 
+    return gCenterPoint + offset;               
+}
+
+default {
+    state_entry() {
+        gCenterPoint = llGetPos(); 
+        gWaypoint = getRandomWaypoint(); 
+        llSetTimerEvent(0.1); 
+        llSensorRepeat("", NULL_KEY, AGENT | ACTIVE | PASSIVE, gDetectionRange, PI, 2.0); 
+    }
+
+    touch_start(integer num_detected) {
+        gActive = !gActive; 
+        if (gActive) {
+            llOwnerSay("Movement resumed.");
+            gWaypoint = getRandomWaypoint(); 
+            gMoving = TRUE; 
+            llSetTimerEvent(0.1); 
+        } else {
+            llOwnerSay("Movement paused.");
+            gMoving = FALSE; 
+            llSetTimerEvent(0.0); 
+        }
+    }
+
+    timer() {
+        if (gTurning) {
+            
+            gTurning = FALSE; 
+            gWaypoint = getRandomWaypoint(); 
+            gMoving = TRUE; 
+        } else if (gActive && !gMoving) {
+            
+            gWaypoint = getRandomWaypoint(); 
+            gMoving = TRUE; 
+        } else if (gActive) {
+            
+            moveToWaypoint(); 
+        }
+    }
+
+    sensor(integer total_number) {
+        if (total_number > 0 && !gTurning && gActive) {
+            
+            gTurning = TRUE; 
+
+            vector currentPosition = llGetPos();
+            vector direction = llVecNorm(gWaypoint - currentPosition);
+            vector reversedDirection = -direction;
+            vector forward = <1, 0, 0>;
+            vector newTargetDirection = <reversedDirection.x, reversedDirection.y, 0.0>;
+            rotation newRotation = llRotBetween(forward, newTargetDirection) * llEuler2Rot(<0, 0, gTurnAngle>);
+
+            llSetRot(newRotation); 
+            llSetPos(currentPosition + reversedDirection * gSpeed); 
+
+            
+            llSetTimerEvent(0.5); 
+        }
+    }
+}
+
